@@ -40,6 +40,11 @@ import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import jaci.pathfinder.Pathfinder;
+import jaci.pathfinder.Trajectory;
+import jaci.pathfinder.Waypoint;
+import jaci.pathfinder.followers.EncoderFollower;
+import jaci.pathfinder.modifiers.TankModifier;
 
 public class Robot extends IterativeRobot {
 
@@ -50,10 +55,12 @@ public class Robot extends IterativeRobot {
     /** some example logic on how one can manage an MP */
     MotionProfileExample _example = new MotionProfileExample(_talon),
             _exampleA = new MotionProfileExample(_talonB);
-    
+    EncoderFollower leftEF, rightEF;
     /** joystick for testing */
     Joystick _joy= new Joystick(0);
-
+    public double wheel_Diam = 0.194, max_velocity = 3.0;
+    public int encoderTicks = 1440;
+    public static double dt = 0.05, vel_max = 1.7, accel_max = 2.0, jerk_max = 60.0, wheelbase_width = 0.6;
     /** cache last buttons so we can detect press events.  In a command-based project you can leverage the on-press event
      * but for this simple example, lets just do quick compares to prev-btn-states */
     boolean [] _btnsLast = {false,false,false,false,false,false,false,false,false,false};
@@ -67,7 +74,28 @@ public class Robot extends IterativeRobot {
     }
     
     int _mpStatus = 0;
-    
+    public void initEncoders()
+    {
+        _talon.setPosition(0);
+        _talonB.setPosition(0);
+        
+//        leftEF.configureEncoder(_talon.getEncPosition(), encoderTicks,
+//                wheel_Diam);
+//        leftEF.configurePIDVA(1.0, 0.0, 0.0, 1 / max_velocity, 0);
+//        rightEF.configureEncoder(_talonB.getEncPosition(), encoderTicks,
+//                wheel_Diam);
+//        rightEF.configurePIDVA(1.0, 0.0, 0.0, 1 / max_velocity, 0);
+        _talon.clearMotionProfileTrajectories();
+        _talon.changeControlMode(TalonControlMode.MotionProfile);
+        _talon.set(CANTalon.SetValueMotionProfile.Disable.value);
+        _talon.changeMotionControlFramePeriod(5);
+        _talonB.clearMotionProfileTrajectories();
+        _talonB.changeControlMode(TalonControlMode.MotionProfile);
+        _talonB.set(CANTalon.SetValueMotionProfile.Disable.value);
+        _talonB.changeMotionControlFramePeriod(5);
+        _talon.reverseOutput(true);
+        _talonB.reverseSensor(true);
+    }
     class PeriodicRunnable implements java.lang.Runnable {
         public void run() 
         {  
@@ -93,24 +121,7 @@ public class Robot extends IterativeRobot {
         _talonC.changeControlMode(TalonControlMode.Follower);
         _talonC.set(_talonB.getDeviceID());
     }
-    
-    double pVal = 0;
-    public void autonomousInit() {
-        Preferences preferences = Preferences.getInstance();
-        pVal = preferences.getDouble("pVal", 0.0);
-        _talon.setPosition(0);
-        _talonB.setPosition(0);
-        _talon.clearMotionProfileTrajectories();
-        _talon.changeControlMode(TalonControlMode.MotionProfile);
-        _talon.set(CANTalon.SetValueMotionProfile.Disable.value);
-        _talon.changeMotionControlFramePeriod(5);
-        //_talon.reverseSensor(true);
-        _talonB.clearMotionProfileTrajectories();
-        _talonB.changeControlMode(TalonControlMode.MotionProfile);
-        _talonB.set(CANTalon.SetValueMotionProfile.Disable.value);
-        _talonB.changeMotionControlFramePeriod(5);
-        _talon.reverseOutput(true);
-        _talonB.reverseSensor(true);
+    public void setEncoderPIDF() {
         _talon.setF(0.8103);
         _talon.setP(2.0);
         _talon.setI(0.0);
@@ -119,13 +130,54 @@ public class Robot extends IterativeRobot {
         _talonB.setP(2.0);
         _talonB.setI(0.0);
         _talonB.setD(0.0);
+    }
+    public void autonomousInit() {
+
+        initEncoders();
+        
+        setEncoderPIDF();
         _mpStatus = 0;
         _loops = 0;
         complete = false;
-        DriverStation.reportError(""+pVal, false);
     }
     
     /**  function is called periodically during operator control */
+    Trajectory left, right;
+    public void configTrajectory() {
+        Trajectory.Config config = new Trajectory.Config(Trajectory.FitMethod.HERMITE_CUBIC, 
+                Trajectory.Config.SAMPLES_HIGH, dt, vel_max, accel_max, jerk_max);
+        Waypoint[] points = new Waypoint[] {
+                new Waypoint(-4, -1, Pathfinder.d2r(-45)),
+                new Waypoint(-2, -2, 0),
+                new Waypoint(0, 0, 0)
+        };
+
+        Trajectory trajectory = Pathfinder.generate(points, config);
+
+        // Wheelbase Width = 0.5m
+        TankModifier modifier = new TankModifier(trajectory).modify(wheelbase_width);
+
+        // Do something with the new Trajectories...
+        
+        left = modifier.getLeftTrajectory();
+        right = modifier.getRightTrajectory();
+        System.out.println(left.segments[3].position);
+        leftEF = new EncoderFollower(left);
+        rightEF = new EncoderFollower(right);
+//        leftEF.setTrajectory((Trajectory) modifier.getLeftTrajectory());
+//        rightEF.setTrajectory(right);
+    }
+    public void testInit() {
+        configTrajectory();
+        initEncoders();
+        setEncoderPIDF();
+    }
+    public void testPeriodic() {
+        double l = leftEF.calculate(_talon.getEncPosition());
+        double r = rightEF.calculate(_talonB.getEncPosition());
+        _talon.set(l);
+        _talonB.set(r);
+    }
     boolean complete = false;
     public void autonomousPeriodic() {
         _talon.getMotionProfileStatus(_status); 
@@ -136,8 +188,8 @@ public class Robot extends IterativeRobot {
             case 0:
                 DriverStation.reportWarning("auto case 0", false);
                 _notifer.startPeriodic(0.005);
-                _example.startFilling();       
-                _exampleA.startFilling();
+                _example.fillLeft();       
+                _exampleA.fillRight();
                 _talon.set(CANTalon.SetValueMotionProfile.Enable.value);
                 _talonB.set(CANTalon.SetValueMotionProfile.Enable.value);
                 _mpStatus++;
@@ -163,8 +215,7 @@ public class Robot extends IterativeRobot {
                     _talonB.set(CANTalon.SetValueMotionProfile.Disable.value);
                     DriverStation.reportWarning("# auto loops: " + _loops, false);
                     System.out.println(_talon.getPosition());
-                    System.out.println(_talonB.getPosition() + " " + pVal);
-                    System.out.println(pVal);
+                    System.out.println(_talonB.getPosition());
                     complete = true;
                 }
                 _loops++;
