@@ -243,7 +243,13 @@ public class MotionProfileExample {
         startFilling(MP2016botTest.Points, MP2016botTest.kNumPoints);
         DriverStation.reportWarning("filling", false);
     }
-
+    public void fillLeft() {
+        startFilling(leftProfile.Points, leftProfile.kNumPoints);
+    }
+    public void fillRight() {
+        startFilling(rightProfile.Points, rightProfile.kNumPoints);
+        
+    }
     private void startFilling(double[][] profile, int totalCnt) {
 
         /* create an empty point */

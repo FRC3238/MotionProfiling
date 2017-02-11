@@ -1,29 +1,3 @@
-/**
- * This Java FRC robot application is meant to demonstrate an example using the Motion Profile control mode
- * in Talon SRX.  The CANTalon class gives us the ability to buffer up trajectory points and execute them
- * as the roboRIO streams them into the Talon SRX.
- * 
- * There are many valid ways to use this feature and this example does not sufficiently demonstrate every possible
- * method.  Motion Profile streaming can be as complex as the developer needs it to be for advanced applications,
- * or it can be used in a simple fashion for fire-and-forget actions that require precise timing.
- * 
- * This application is an IterativeRobot project to demonstrate a minimal implementation not requiring the command 
- * framework, however these code excerpts could be moved into a command-based project.
- * 
- * The project also includes instrumentation.java which simply has debug printfs, and a MotionProfile.java which is generated
- * in @link https://docs.google.com/spreadsheets/d/1PgT10EeQiR92LNXEOEe3VGn737P7WDP4t0CQxQgC8k0/edit#gid=1813770630&vpid=A1
- * 
- * Logitech Gamepad mapping, use left y axis to drive Talon normally.  
- * Press and hold top-left-shoulder-button5 to put Talon into motion profile control mode.
- * This will start sending Motion Profile to Talon while Talon is neutral. 
- * 
- * While holding top-left-shoulder-button5, tap top-right-shoulder-button6.
- * This will signal Talon to fire MP.  When MP is done, Talon will "hold" the last setpoint position
- * and wait for another button6 press to fire again.
- * 
- * Release button5 to allow OpenVoltage control with left y axis.
- */
-
 package org.usfirst.frc.team3238.robot;
 
 import java.util.ArrayList;
@@ -44,7 +18,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 public class Robot extends IterativeRobot {
 
     /** The Talon we want to motion profile. */
-    CANTalon _talon = new CANTalon(6), _talonA = new CANTalon(7),
+    CANTalon _talon = new CANTalon(3), _talonA = new CANTalon(4),
             _talonB = new CANTalon(1), _talonC = new CANTalon(2);
 //    ArrayList<Integer> leftCount = new ArrayList<Integer>(), rightCount = new ArrayList<Integer>();
     /** some example logic on how one can manage an MP */
@@ -56,7 +30,6 @@ public class Robot extends IterativeRobot {
 
     /** cache last buttons so we can detect press events.  In a command-based project you can leverage the on-press event
      * but for this simple example, lets just do quick compares to prev-btn-states */
-    boolean [] _btnsLast = {false,false,false,false,false,false,false,false,false,false};
 
     int _loops = 0;
     
@@ -86,7 +59,7 @@ public class Robot extends IterativeRobot {
 //        _talon.setForwardSoftLimit(forwardLimit);
         _talon.configEncoderCodesPerRev(360);
         _talonB.configEncoderCodesPerRev(360);
-        _talon.reverseSensor(false); /* keep sensor and motor in phase */
+        _talon.reverseSensor(true); /* keep sensor and motor in phase */
         _talon.setInverted(true);        
         _talonA.changeControlMode(TalonControlMode.Follower);
         _talonA.set(_talon.getDeviceID());
@@ -110,15 +83,21 @@ public class Robot extends IterativeRobot {
         _talonB.set(CANTalon.SetValueMotionProfile.Disable.value);
         _talonB.changeMotionControlFramePeriod(5);
         _talon.reverseOutput(true);
-        _talonB.reverseSensor(true);
-        _talon.setF(0.8103);
-        _talon.setP(2.0);
+        _talonB.reverseSensor(false);
+        _talonB.reverseOutput(false);
+        _talon.setF(0.76);
+        _talon.setP(0.09);
+//        _talon.setP(0);
+//        _talonB.setP(0);
         _talon.setI(0.0);
+        _talonB.setP(0.09);
         _talon.setD(0.0);
-        _talonB.setF(0.763);
-        _talonB.setP(2.0);
+        _talonB.setF(0.76);
+//        _talonB.setP(2.0);
         _talonB.setI(0.0);
         _talonB.setD(0.0);
+//        _talon.configEncoderCodesPerRev(1440);
+//        _talonB.configEncoderCodesPerRev(1440);
         _mpStatus = 0;
         _loops = 0;
         complete = false;
@@ -136,8 +115,8 @@ public class Robot extends IterativeRobot {
             case 0:
                 DriverStation.reportWarning("auto case 0", false);
                 _notifer.startPeriodic(0.005);
-                _example.startFilling();       
-                _exampleA.startFilling();
+                _example.fillRight();       
+                _exampleA.fillLeft();
                 _talon.set(CANTalon.SetValueMotionProfile.Enable.value);
                 _talonB.set(CANTalon.SetValueMotionProfile.Enable.value);
                 _mpStatus++;
@@ -183,10 +162,18 @@ public class Robot extends IterativeRobot {
         t.start();
     }
     int leftCount = 0, rightCount = 0, counterA = 0;
+    Joystick mainDrive = new Joystick(1);
     public void teleopPeriodic() {
+        double twist = 0, y = 0;
+        if(Math.abs(mainDrive.getTwist()) > 0.15){
+           twist = mainDrive.getTwist()*.5;
         
-       _talon.set(1.0);
-       _talonB.set(1.0);
+        }
+        if(Math.abs(mainDrive.getY()) > 0.15) {
+        y = mainDrive.getY();
+        } 
+        _talon.set(y-twist);
+        _talonB.set(y+twist);
        if(t.get() > 0.1) {
 //       System.out.println(t.get());
            leftCount += _talon.getPosition();
@@ -205,6 +192,8 @@ public class Robot extends IterativeRobot {
          * into a known state when robot is disabled.  That way when you
          * enable the robot doesn't just continue doing what it was doing before.
          * BUT if that's what the application/testing requires than modify this accordingly */
+        DriverStation.reportWarning("Talon 0: " + _talon.getEncPosition(), false);
+        DriverStation.reportWarning("Talon B: " + _talonB.getEncPosition(), false);
         _talon.changeControlMode(TalonControlMode.PercentVbus);
         _talon.set( 0 );
         _talonB.set(0);
