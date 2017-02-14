@@ -91,11 +91,16 @@ public class MotionProfileExample {
      * of your trajectory points.  So if they are firing every 20ms, you should call 
      * every 10ms.
      */
+    double[][] fedProfile;
+    int kNumPoints;
     class PeriodicRunnable implements java.lang.Runnable {
         public void run() {  _talon.processMotionProfileBuffer();    }
     }
     Notifier _notifer = new Notifier(new PeriodicRunnable());
-    
+    public void setFedProfile(double[][] profile) {
+        fedProfile = profile;
+        kNumPoints = profile.length;
+    }
 
     /**
      * C'tor
@@ -139,117 +144,13 @@ public class MotionProfileExample {
     /**
      * Called every loop.
      */
-    public void control() {
-        /* Get the motion profile status every loop */
-        _talon.getMotionProfileStatus(_status);
-
-        /*
-         * track time, this is rudimentary but that's okay, we just want to make
-         * sure things never get stuck.
-         */
-        if (_loopTimeout < 0) {
-            /* do nothing, timeout is disabled */
-        } else {
-            /* our timeout is nonzero */
-            if (_loopTimeout == 0) {
-                /*
-                 * something is wrong. Talon is not present, unplugged, breaker
-                 * tripped
-                 */
-                instrumentation.OnNoProgress();
-            } else {
-                --_loopTimeout;
-            }
-        }
-
-        /* first check if we are in MP mode */
-        if (_talon.getControlMode() != TalonControlMode.MotionProfile) {
-            /*
-             * we are not in MP mode. We are probably driving the robot around
-             * using gamepads or some other mode.
-             */
-            _state = 0;
-            _loopTimeout = -1;
-        } else {
-            /*
-             * we are in MP control mode. That means: starting Mps, checking Mp
-             * progress, and possibly interrupting MPs if thats what you want to
-             * do.
-             */
-            switch (_state) {
-                case 0: /* wait for application to tell us to start an MP */
-                    DriverStation.reportWarning("case 0", false);
-                    if (_bStart) {
-                        _bStart = false;
     
-                        _setValue = CANTalon.SetValueMotionProfile.Disable;
-                        startFilling();
-                        /*
-                         * MP is being sent to CAN bus, wait a small amount of time
-                         */
-                        _state = 1;
-                        _loopTimeout = kNumLoopsTimeout;
-                    }
-                    break;
-                case 1: /*
-                         * wait for MP to stream to Talon, really just the first few
-                         * points
-                         */
-                    /* do we have a minimum numberof points in Talon */
-                    if (_status.btmBufferCnt > kMinPointsInTalon) {
-                        /* start (once) the motion profile */
-                        _setValue = CANTalon.SetValueMotionProfile.Enable;
-                        /* MP will start once the control frame gets scheduled */
-                        _state = 2;
-                        _loopTimeout = kNumLoopsTimeout;
-                    }
-                    break;
-                case 2: /* check the status of the MP */
-                    /*
-                     * if talon is reporting things are good, keep adding to our
-                     * timeout. Really this is so that you can unplug your talon in
-                     * the middle of an MP and react to it.
-                     */
-                    DriverStation.reportWarning("case 2", false);
-                    if (_status.isUnderrun == false) {
-                        _loopTimeout = kNumLoopsTimeout;
-                    }
-                    /*
-                     * If we are executing an MP and the MP finished, start loading
-                     * another. We will go into hold state so robot servo's
-                     * position.
-                     */
-                    if (_status.activePointValid && _status.activePoint.isLastPoint) {
-                        /*
-                         * because we set the last point's isLast to true, we will
-                         * get here when the MP is done
-                         */
-                        _setValue = CANTalon.SetValueMotionProfile.Hold;
-                        _state = 0;
-                        _loopTimeout = -1;
-                    }
-                    break;
-            }
-        }
-        /* printfs and/or logging */
-        instrumentation.process(_status);
-    }
 
     /** Start filling the MPs to all of the involved Talons. */
-    public void startFilling() {
-        /* since this example only has one talon, just update that one */
-        //startFilling(GeneratedMotionProfile.Points, GeneratedMotionProfile.kNumPoints);
-        //startFilling(GenMotionProfile3238.Points, GenMotionProfile3238.kNumPoints);
-        startFilling(MP2016botTest.Points, MP2016botTest.kNumPoints);
-        DriverStation.reportWarning("filling", false);
+    public void fillFed() {
+        startFilling(fedProfile, kNumPoints);
     }
-    public void fillLeft() {
-        startFilling(leftProfile.Points, leftProfile.kNumPoints);
-    }
-    public void fillRight() {
-        startFilling(rightProfile.Points, rightProfile.kNumPoints);
-        
-    }
+   
     private void startFilling(double[][] profile, int totalCnt) {
 
         /* create an empty point */
