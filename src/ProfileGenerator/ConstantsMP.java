@@ -14,5 +14,6 @@ public class ConstantsMP {
     public static final double kDriverWallToSideLift = 130; //inches, from field CAD
     public static final double kSideWallToBoilerSideLift = 91.2; //inches, from field CAD
     public static final double kSideWallToFeederSideLift = 89.7; //inches, from field CAD
-
+    public static final double kFirstForwardMove = 65.512;
+    public static final double kSecondForwardMove = 111.697;
 }

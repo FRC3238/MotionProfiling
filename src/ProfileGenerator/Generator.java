@@ -5,6 +5,7 @@ import java.util.List;
 
 import javax.swing.JOptionPane;
 
+import edu.wpi.first.wpilibj.DriverStation;
 //import AutoDriveMotionProfileHelper.DriveSides;
 import jaci.pathfinder.*;
 import jaci.pathfinder.modifiers.*;
@@ -77,7 +78,16 @@ public class Generator
 
         return TalonListToDouble(leftSideProfile);
     }
-
+    public double[][] getStraightProfile(double distance) {
+        Trajectory straightProfile = AutoDriveMotionProfileHelper.getStraightTrajectory(dt, maxVel, maxAccel, maxJerk, distance);
+        List<TalonMotionProfilePoint> straightProf = AutoDriveMotionProfileHelper
+                .getMotionProfileLeftRight(straightProfile,AutoDriveMotionProfileHelper.AllianceColors.RED,
+                        AutoDriveMotionProfileHelper.DriveSides.RIGHT );
+//        for(int i = 0; i < straightProfile.length(); i++) {
+//            DriverStation.reportWarning(""+straightProfile.get(i).position, false);
+//        }
+        return TalonListToDouble(straightProf);
+    }
     public double[][] getMainLift()
     {
         Trajectory mainLiftTrajectory = AutoDriveMotionProfileHelper

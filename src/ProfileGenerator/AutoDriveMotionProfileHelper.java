@@ -22,6 +22,18 @@ public class AutoDriveMotionProfileHelper {
         LEFT,
         RIGHT
     }
+    public static Trajectory getStraightTrajectory(double dt, double maxVel, double maxAccel, double maxJerk, double distance) {
+        Trajectory.Config config = new Trajectory.Config(Trajectory.FitMethod.HERMITE_CUBIC, Trajectory.Config.SAMPLES_HIGH, dt, maxVel, maxAccel, maxJerk);
+        Trajectory trajectory = Pathfinder.generate(getWaypointsDistance(distance), config);
+
+        return trajectory;
+    }
+    public static Waypoint[] getWaypointsDistance(double distance) {
+        Waypoint[] result = new Waypoint[2];
+        result[0] = new Waypoint(0,0,Math.PI/2);
+        result[1] = new Waypoint(0, distance - (ConstantsMP.kRobotLengthWithBumpers), Math.PI/2);
+        return result;
+    }
     public static Waypoint[] getWaypointsSideWallToCenterLift() {
         Waypoint[] result = new Waypoint[2];
         result[0] = new Waypoint(0,0,Math.PI/2);
